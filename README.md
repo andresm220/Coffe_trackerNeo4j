@@ -134,6 +134,4 @@ Los componentes del frontend nunca llaman a Neo4j directamente; todo pasa por la
 - **neo4j-driver 6.x:** Los enteros de Neo4j (Int64) se convierten automáticamente con `serializeValue()` en `lib/neo4j.ts`. Los nodos (`Node`) se deserializan a sus `.properties`.
 - **Tailwind v4:** Usa `@import "tailwindcss"` en lugar de las directivas `@tailwind base/components/utilities`. El import de Google Fonts debe ir **antes** de este import.
 
-## Licencia
 
-MIT
