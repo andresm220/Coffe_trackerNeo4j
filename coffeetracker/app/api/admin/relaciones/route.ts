@@ -26,7 +26,8 @@ export async function GET(request: Request) {
               properties(r) AS props,
               labels(a)[0]  AS from_label, properties(a) AS from_node,
               labels(b)[0]  AS to_label,   properties(b) AS to_node
-       LIMIT 50`
+       ORDER BY eid DESC
+       LIMIT 200`
     )
     return NextResponse.json(records)
   } catch (error) {

@@ -18,7 +18,10 @@ export async function GET(request: Request) {
     const label = searchParams.get('label') || 'Cafeteria'
     if (!LABELS.includes(label)) return NextResponse.json({ error: 'Label no válido' }, { status: 400 })
     const records = await runQuery(`MATCH (n:${label}) RETURN properties(n) AS n, elementId(n) AS eid ORDER BY eid DESC LIMIT 200`)
-    return NextResponse.json(records.map((r) => (r as Record<string, unknown>).n))
+    return NextResponse.json(records.map((r) => {
+      const row = r as Record<string, unknown>
+      return { ...(row.n as Record<string, unknown>), _eid: row.eid }
+    }))
   } catch (error) {
     console.error('[GET /api/admin/nodos]', error)
     return NextResponse.json({ error: 'Error al consultar nodos' }, { status: 500 })
@@ -86,26 +89,28 @@ export async function PATCH(request: Request) {
   }
 }
 
-// DELETE — 1 nodo o múltiples (id_value ó id_values)
+// DELETE — 1 nodo o múltiples (id_value/id_values por campo de negocio, o element_id/element_ids por elementId de Neo4j)
 export async function DELETE(request: Request) {
   try {
-    const { label, id_value, id_values } = await request.json() as {
-      label: string; id_value?: string; id_values?: string[]
+    const { label, id_value, id_values, element_id, element_ids } = await request.json() as {
+      label: string
+      id_value?: string; id_values?: string[]
+      element_id?: string; element_ids?: string[]
     }
     if (!LABELS.includes(label)) return NextResponse.json({ error: 'Label no válido' }, { status: 400 })
+
+    const eids = (element_ids && element_ids.length > 0) ? element_ids : (element_id ? [element_id] : [])
     const idf = getIdField(label)
-    if (id_values && id_values.length > 0) {
-      await runQuery(
-        `MATCH (n:${label}) WHERE n.${idf} IN $id_values DETACH DELETE n`,
-        { id_values }
-      )
-    } else if (id_value) {
-      await runQuery(
-        `MATCH (n:${label}) WHERE n.${idf} = $id_value DETACH DELETE n`,
-        { id_value }
-      )
-    } else {
-      return NextResponse.json({ error: 'Se requiere id_value o id_values' }, { status: 400 })
+    const idVals = (id_values && id_values.length > 0) ? id_values : (id_value ? [id_value] : [])
+
+    if (!eids.length && !idVals.length) {
+      return NextResponse.json({ error: 'Se requiere id_value, id_values, element_id o element_ids' }, { status: 400 })
+    }
+    if (eids.length) {
+      await runQuery(`MATCH (n:${label}) WHERE elementId(n) IN $eids DETACH DELETE n`, { eids })
+    }
+    if (idVals.length) {
+      await runQuery(`MATCH (n:${label}) WHERE n.${idf} IN $id_values DETACH DELETE n`, { id_values: idVals })
     }
     return NextResponse.json({ success: true })
   } catch (error) {
