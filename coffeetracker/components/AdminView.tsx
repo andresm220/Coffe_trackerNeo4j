@@ -46,6 +46,11 @@ function getNodeId(node: NodeRecord, label: string): string {
   return String(node[getIdField(label)] ?? '')
 }
 
+// Llave estable para selección/edición — usa el campo de ID si existe, si no el elementId de Neo4j
+function getSelectKey(node: NodeRecord, label: string): string {
+  return getNodeId(node, label) || String(node._eid ?? '')
+}
+
 function getNodeName(node: NodeRecord): string {
   return String(node.nombre ?? node.name ?? Object.values(node)[0] ?? '')
 }
@@ -211,6 +216,10 @@ function NodosPanel() {
       }
     })
     if (!Object.keys(props).length) { setError('Completa al menos el campo ID para crear el nodo'); return }
+    // El campo de ID es obligatorio: sin él, el nodo no se puede borrar/editar después
+    const requiredIds = labels.map(l => getIdField(l))
+    const missingId = requiredIds.find(idKey => !(idKey in props) || props[idKey] === '' || props[idKey] === null || props[idKey] === undefined)
+    if (missingId) { setError(`Falta el campo "${missingId}" — es obligatorio para identificar el nodo`); return }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/nodos', {
@@ -226,9 +235,9 @@ function NodosPanel() {
   }
 
   function startEdit(node: NodeRecord) {
-    const id = getNodeId(node, activeLabel)
-    if (editingId === id) { setEditingId(null); return }
-    setEditingId(id); setEditProps(nodeToKV(node))
+    const key = getSelectKey(node, activeLabel)
+    if (editingId === key) { setEditingId(null); return }
+    setEditingId(key); setEditProps(nodeToKV(node).filter(p => p.key !== '_eid'))
   }
 
   async function handleSave(idVal: string) {
@@ -249,9 +258,13 @@ function NodosPanel() {
   async function handleDelete(node: NodeRecord) {
     if (!confirm('¿Eliminar este nodo?')) return
     try {
+      const idValue = getNodeId(node, activeLabel)
+      const eid = node._eid as string | undefined
+      // Si el nodo no tiene su campo de ID, fallback a borrar por elementId de Neo4j
+      const body = idValue ? { label: activeLabel, id_value: idValue } : { label: activeLabel, element_id: eid }
       const res = await fetch('/api/admin/nodos', {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: activeLabel, id_value: getNodeId(node, activeLabel) }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Error al eliminar')
       await load()
@@ -272,13 +285,20 @@ function NodosPanel() {
   }
 
   async function handleBulkDelete() {
-    const ids = Array.from(selected)
+    const ids = Array.from(selected).filter(Boolean)
     if (!ids.length || !confirm(`¿Eliminar ${ids.length} nodo(s)?`)) return
     setBulkDeleting(true)
     try {
+      // Si un id seleccionado coincide con un _eid (formato Neo4j "4:uuid:n"), borramos por elementId; si no, por campo de negocio
+      const looksLikeEid = (s: string) => /^\d+:[0-9a-f-]+:\d+$/i.test(s)
+      const eids = ids.filter(looksLikeEid)
+      const idValues = ids.filter(s => !looksLikeEid(s))
+      const body: Record<string, unknown> = { label: activeLabel }
+      if (eids.length) body.element_ids = eids
+      if (idValues.length) body.id_values = idValues
       const res = await fetch('/api/admin/nodos', {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: activeLabel, id_values: ids }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Error bulk delete')
       await load()
@@ -290,10 +310,10 @@ function NodosPanel() {
     setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
   function toggleAll() {
-    selected.size === nodos.length ? setSelected(new Set()) : setSelected(new Set(nodos.map(n => getNodeId(n, activeLabel))))
+    selected.size === nodos.length ? setSelected(new Set()) : setSelected(new Set(nodos.map(n => getSelectKey(n, activeLabel))))
   }
 
-  const columns = nodos.length > 0 ? Object.keys(nodos[0]).slice(0, 5) : []
+  const columns = nodos.length > 0 ? Object.keys(nodos[0]).filter(k => k !== '_eid').slice(0, 5) : []
 
   return (
     <div>
@@ -417,13 +437,14 @@ function NodosPanel() {
               </thead>
               <tbody>
                 {nodos.map((node, i) => {
-                  const idVal   = getNodeId(node, activeLabel) || String(i)
-                  const isSel   = selected.has(idVal)
-                  const isEdit  = editingId === idVal
+                  const selKey  = getSelectKey(node, activeLabel) || String(i)
+                  const idVal   = getNodeId(node, activeLabel)
+                  const isSel   = selected.has(selKey)
+                  const isEdit  = editingId === selKey
                   return (
-                    <Fragment key={idVal}>
+                    <Fragment key={selKey}>
                       <tr style={{ background: isSel ? '#fff8f0' : isEdit ? '#faf5ef' : undefined }}>
-                        <td><input type="checkbox" checked={isSel} onChange={() => toggleSel(idVal)} /></td>
+                        <td><input type="checkbox" checked={isSel} onChange={() => toggleSel(selKey)} /></td>
                         {columns.map(c => (
                           <td key={c} style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {formatCell(node[c])}
@@ -534,7 +555,9 @@ function RelacionesPanel() {
         body: JSON.stringify({ type: cType, from_label: fromLabel, from_id_value: fromVal.trim(), to_label: toLabel, to_id_value: toVal.trim(), properties: props }),
       })
       if (!res.ok) throw new Error((await res.json()).error || 'Error al crear')
-      setShowCreate(false); setFromVal(''); setToVal(''); setCProps(emptyKV(3)); await load()
+      setShowCreate(false); setFromVal(''); setToVal(''); setCProps(emptyKV(3))
+      // Si se creó con un tipo distinto al activo, cambiar el filtro para que el usuario vea su relación nueva
+      if (cType !== activeType) setActiveType(cType); else await load()
     } catch (e) { setError(e instanceof Error ? e.message : 'Error al crear') }
     finally { setCreating(false) }
   }
