@@ -8,7 +8,7 @@ function getDriver(): Driver {
   if (!global._neo4jDriver) {
     global._neo4jDriver = neo4j.driver(
       process.env.NEO4J_URI!,
-      neo4j.auth.basic(process.env.NEO4J_USER!, process.env.NEO4J_PASSWORD!)
+      neo4j.auth.basic(process.env.NEO4J_USERNAME!, process.env.NEO4J_PASSWORD!)
     )
   }
   return global._neo4jDriver
