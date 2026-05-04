@@ -14,6 +14,7 @@ export default function CafeteriasView() {
   const [error, setError] = useState<string | null>(null)
   const [ciudad, setCiudad] = useState(searchParams.get('ciudad') || '')
   const [tipo, setTipo] = useState(searchParams.get('tipo') || '')
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -39,6 +40,24 @@ export default function CafeteriasView() {
   const ciudades = Array.from(new Set(cafeterias.map((c) => c.ciudad))).sort()
   const tipos = Array.from(new Set(cafeterias.map((c) => c.tipo))).sort()
 
+  // Filtro client-side por texto: nombre, ciudad, tipo, métodos disponibles, cafeteria_id
+  const q = query.trim().toLowerCase()
+  const visibles = q
+    ? cafeterias.filter((c) => {
+        const haystack = [
+          c.nombre,
+          c.ciudad,
+          c.tipo,
+          c.cafeteria_id,
+          ...(Array.isArray(c.metodos_disponibles) ? c.metodos_disponibles : []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return haystack.includes(q)
+      })
+    : cafeterias
+
   if (error) {
     return (
       <div className="page">
@@ -53,6 +72,13 @@ export default function CafeteriasView() {
     <div className="page fade-in">
       {/* Filtros */}
       <div className="filter-bar">
+        <input
+          className="trace-input"
+          style={{ flex: 1, minWidth: 200 }}
+          placeholder="Buscar por nombre, ciudad, método…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <select
           className="filter-select"
           value={ciudad}
@@ -73,10 +99,10 @@ export default function CafeteriasView() {
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
-        {(ciudad || tipo) && (
+        {(ciudad || tipo || query) && (
           <button
             className="btn btn-outline"
-            onClick={() => { setCiudad(''); setTipo('') }}
+            onClick={() => { setCiudad(''); setTipo(''); setQuery('') }}
           >
             Limpiar filtros
           </button>
@@ -85,7 +111,7 @@ export default function CafeteriasView() {
 
       {loading ? (
         <div className="loading-state">☕ Cargando cafeterías…</div>
-      ) : cafeterias.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">☕</div>
           <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 500, color: 'var(--text-dark)', marginBottom: 8 }}>
@@ -96,12 +122,13 @@ export default function CafeteriasView() {
       ) : (
         <>
           <div className="section-title">
-            {cafeterias.length} {cafeterias.length === 1 ? 'cafetería' : 'cafeterías'}
+            {visibles.length} {visibles.length === 1 ? 'cafetería' : 'cafeterías'}
             {ciudad ? ` en ${ciudad}` : ''}
             {tipo ? ` · ${tipo}` : ''}
+            {query ? ` · «${query}»` : ''}
           </div>
           <div className="cafe-grid">
-            {cafeterias.map((cafe) => (
+            {visibles.map((cafe) => (
               <CafeteriaCard
                 key={cafe.cafeteria_id}
                 cafeteria={cafe}
