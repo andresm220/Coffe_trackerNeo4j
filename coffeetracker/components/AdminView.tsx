@@ -183,6 +183,9 @@ function NodosPanel() {
   const [bulkVal, setBulkVal]           = useState('')
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
+  // Búsqueda libre por cualquier campo
+  const [search, setSearch] = useState('')
+
   const idf = getIdField(activeLabel)
 
   const load = useCallback(async () => {
@@ -310,10 +313,26 @@ function NodosPanel() {
     setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
   function toggleAll() {
-    selected.size === nodos.length ? setSelected(new Set()) : setSelected(new Set(nodos.map(n => getSelectKey(n, activeLabel))))
+    // Selecciona/deselecciona los nodos visibles (respeta el filtro de búsqueda)
+    const target = visibles.length > 0 ? visibles : nodos
+    selected.size === target.length ? setSelected(new Set()) : setSelected(new Set(target.map(n => getSelectKey(n, activeLabel))))
   }
 
   const columns = nodos.length > 0 ? Object.keys(nodos[0]).filter(k => k !== '_eid').slice(0, 5) : []
+
+  // Filtro client-side: busca el query en cualquier valor del nodo (case-insensitive)
+  const q = search.trim().toLowerCase()
+  const visibles = q
+    ? nodos.filter(n =>
+        Object.entries(n)
+          .filter(([k]) => k !== '_eid')
+          .some(([, v]) => {
+            if (v == null) return false
+            const s = Array.isArray(v) ? v.join(' ') : String(v)
+            return s.toLowerCase().includes(q)
+          })
+      )
+    : nodos
 
   return (
     <div>
@@ -326,7 +345,14 @@ function NodosPanel() {
 
       {/* Header */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <span className="section-title" style={{ marginBottom: 0, flex: 1 }}>{activeLabel}s {!loading && `· ${nodos.length}`}</span>
+        <span className="section-title" style={{ marginBottom: 0 }}>{activeLabel}s {!loading && `· ${q ? `${visibles.length}/${nodos.length}` : nodos.length}`}</span>
+        <input
+          className="trace-input"
+          style={{ flex: 1, minWidth: 200, fontSize: 12 }}
+          placeholder={`Buscar en ${activeLabel}s — nombre, id, ciudad…`}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={toggleAll}>
           {selected.size === nodos.length && nodos.length > 0 ? 'Deseleccionar todo' : 'Seleccionar todo'}
         </button>
@@ -424,19 +450,21 @@ function NodosPanel() {
         <div className="loading-state">Cargando {activeLabel}s…</div>
       ) : nodos.length === 0 ? (
         <div className="empty-state"><p>No hay {activeLabel}s.</p></div>
+      ) : visibles.length === 0 ? (
+        <div className="empty-state"><p>Ningún {activeLabel} coincide con «{search}».</p></div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={{ width: 32 }}><input type="checkbox" checked={selected.size === nodos.length} onChange={toggleAll} /></th>
+                  <th style={{ width: 32 }}><input type="checkbox" checked={selected.size === visibles.length && visibles.length > 0} onChange={toggleAll} /></th>
                   {columns.map(c => <th key={c}>{c}</th>)}
                   <th style={{ width: 120 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {nodos.map((node, i) => {
+                {visibles.map((node, i) => {
                   const selKey  = getSelectKey(node, activeLabel) || String(i)
                   const idVal   = getNodeId(node, activeLabel)
                   const isSel   = selected.has(selKey)
@@ -532,6 +560,9 @@ function RelacionesPanel() {
   const [bulkKey, setBulkKey] = useState('')
   const [bulkVal, setBulkVal] = useState('')
 
+  // Búsqueda libre por nombre de origen/destino o propiedad
+  const [search, setSearch] = useState('')
+
   const load = useCallback(async () => {
     setLoading(true); setError(null); setRelSel(new Set()); setEditingEid(null)
     try {
@@ -623,8 +654,23 @@ function RelacionesPanel() {
     setRelSel(p => { const n = new Set(p); n.has(eid) ? n.delete(eid) : n.add(eid); return n })
   }
   function toggleAllRel() {
-    relSel.size === rels.length ? setRelSel(new Set()) : setRelSel(new Set(rels.map(r => r.eid)))
+    const target = visibles.length > 0 ? visibles : rels
+    relSel.size === target.length ? setRelSel(new Set()) : setRelSel(new Set(target.map(r => r.eid)))
   }
+
+  // Filtro client-side: busca en nombre del origen, destino, y propiedades
+  const q = search.trim().toLowerCase()
+  const visibles = q
+    ? rels.filter(r => {
+        const fromName = getNodeName(r.from_node)
+        const toName = getNodeName(r.to_node)
+        const propStr = Object.entries(r.props).map(([k, v]) => `${k} ${v}`).join(' ')
+        return [fromName, toName, r.from_label, r.to_label, propStr]
+          .join(' ')
+          .toLowerCase()
+          .includes(q)
+      })
+    : rels
 
   return (
     <div>
@@ -634,9 +680,20 @@ function RelacionesPanel() {
         <select className="filter-select" value={activeType} onChange={e => setActiveType(e.target.value)}>
           {REL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        {!loading && <span style={{ fontSize: 12, color: 'var(--text-light)' }}>{rels.length} relaciones</span>}
+        {!loading && (
+          <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
+            {q ? `${visibles.length}/${rels.length}` : rels.length} relaciones
+          </span>
+        )}
+        <input
+          className="trace-input"
+          style={{ flex: 1, minWidth: 200, fontSize: 12 }}
+          placeholder="Buscar por origen, destino o propiedad…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={toggleAllRel}>
-          {relSel.size === rels.length && rels.length > 0 ? 'Deseleccionar' : 'Sel. todo'}
+          {relSel.size === visibles.length && visibles.length > 0 ? 'Deseleccionar' : 'Sel. todo'}
         </button>
         <button className="btn btn-fill" style={{ fontSize: 11 }} onClick={() => setShowCreate(v => !v)}>
           {showCreate ? '✕ Cancelar' : '+ Crear Relación'}
@@ -721,13 +778,15 @@ function RelacionesPanel() {
         <div className="loading-state">Cargando relaciones…</div>
       ) : rels.length === 0 ? (
         <div className="empty-state"><p>No hay relaciones de tipo {activeType}.</p></div>
+      ) : visibles.length === 0 ? (
+        <div className="empty-state"><p>Ninguna relación coincide con «{search}».</p></div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={{ width: 32 }}><input type="checkbox" checked={relSel.size === rels.length} onChange={toggleAllRel} /></th>
+                  <th style={{ width: 32 }}><input type="checkbox" checked={relSel.size === visibles.length && visibles.length > 0} onChange={toggleAllRel} /></th>
                   <th>Origen</th>
                   <th>→ Tipo →</th>
                   <th>Destino</th>
@@ -736,7 +795,7 @@ function RelacionesPanel() {
                 </tr>
               </thead>
               <tbody>
-                {rels.map((rel) => {
+                {visibles.map((rel) => {
                   const isSel  = relSel.has(rel.eid)
                   const isEdit = editingEid === rel.eid
                   return (
