@@ -6,15 +6,17 @@ import type { Cafeteria } from '@/types'
 interface Props {
   cafeteria: Cafeteria
   onClick?: () => void
+  staggerIndex?: number
 }
 
-export default function CafeteriaCard({ cafeteria, onClick }: Props) {
+export default function CafeteriaCard({ cafeteria, onClick, staggerIndex = 0 }: Props) {
   const metodos = Array.isArray(cafeteria.metodos_disponibles)
     ? cafeteria.metodos_disponibles
     : []
 
   return (
     <div className="cafe-card" onClick={onClick} role="button" tabIndex={0}
+      style={{ '--stagger': Math.min(staggerIndex, 10) } as React.CSSProperties}
       onKeyDown={(e) => e.key === 'Enter' && onClick?.()}>
       <div className="cafe-card-top">
         <div>

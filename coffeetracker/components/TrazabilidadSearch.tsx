@@ -1,22 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, AlertTriangle } from 'lucide-react'
+import Combobox from './Combobox'
 
 export default function TrazabilidadSearch() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lotes, setLotes] = useState<{ codigo_lote?: string; lote_id?: string; proceso?: string }[]>([])
   const router = useRouter()
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    const loteId = query.trim()
-    if (!loteId) return
+  useEffect(() => {
+    fetch('/api/admin/nodos?label=Lote')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setLotes(data) })
+      .catch(() => {})
+  }, [])
+
+  const suggestions = useMemo(() =>
+    lotes
+      .filter(l => l.codigo_lote)
+      .map(l => ({
+        value: l.codigo_lote!,
+        label: l.proceso ? `${l.codigo_lote} · ${l.proceso}` : l.codigo_lote!,
+      })),
+  [lotes])
+
+  async function navigate(loteId: string) {
     setLoading(true)
     setError(null)
-
     try {
       const res = await fetch(`/api/trazabilidad/${encodeURIComponent(loteId)}`)
       if (res.status === 404) {
@@ -32,7 +46,11 @@ export default function TrazabilidadSearch() {
     }
   }
 
-  const ejemplos = ['GT-FRA-6570', 'GT-RAI-1448', 'GT-HUE-5314']
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const loteId = query.trim()
+    if (loteId) navigate(loteId)
+  }
 
   return (
     <div className="page fade-in">
@@ -47,11 +65,12 @@ export default function TrazabilidadSearch() {
         </p>
 
         <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <input
-            className="trace-input"
-            placeholder="Código de lote (ej. GT-FRA-6570)"
+          <Combobox
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            onSelect={navigate}
+            suggestions={suggestions}
+            placeholder="Código de lote (ej. GT-FRA-6570)"
             disabled={loading}
           />
           <button className="btn btn-fill" type="submit" disabled={loading}>
@@ -64,21 +83,6 @@ export default function TrazabilidadSearch() {
             <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
           </div>
         )}
-
-        <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 10 }}>
-          Ejemplos de lotes:
-        </div>
-        <div className="chips-row" style={{ justifyContent: 'center' }}>
-          {ejemplos.map((e) => (
-            <button
-              key={e}
-              className="chip"
-              onClick={() => router.push(`/trazabilidad/${e}`)}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )

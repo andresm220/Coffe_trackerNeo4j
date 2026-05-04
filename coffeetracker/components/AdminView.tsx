@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, Fragment } from 'react'
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
+import Combobox from './Combobox'
 import { AlertTriangle, X, Plus, Check } from 'lucide-react'
 
 const LABELS = ['Cafeteria', 'Finca', 'Lote', 'Productor', 'Tostador', 'Beneficio', 'Transporte', 'Certificacion'] as const
@@ -321,6 +322,14 @@ function NodosPanel() {
 
   const columns = nodos.length > 0 ? Object.keys(nodos[0]).filter(k => k !== '_eid').slice(0, 5) : []
 
+  const searchSuggestions = useMemo(() =>
+    nodos.map(n => {
+      const id = getNodeId(n, activeLabel)
+      const name = getNodeName(n)
+      return { value: id || name, label: name && name !== id ? `${name} · ${id}` : id || name }
+    }).filter(s => s.value),
+  [nodos, activeLabel])
+
   // Filtro client-side: busca el query en cualquier valor del nodo (case-insensitive)
   const q = search.trim().toLowerCase()
   const visibles = q
@@ -347,12 +356,12 @@ function NodosPanel() {
       {/* Header */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         <span className="section-title" style={{ marginBottom: 0 }}>{activeLabel}s {!loading && `· ${q ? `${visibles.length}/${nodos.length}` : nodos.length}`}</span>
-        <input
-          className="trace-input"
-          style={{ flex: 1, minWidth: 200, fontSize: 12 }}
-          placeholder={`Buscar en ${activeLabel}s — nombre, id, ciudad…`}
+        <Combobox
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={setSearch}
+          suggestions={searchSuggestions}
+          placeholder={`Buscar en ${activeLabel}s — nombre, id, ciudad…`}
+          className="trace-input"
         />
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={toggleAll}>
           {selected.size === nodos.length && nodos.length > 0 ? 'Deseleccionar todo' : 'Seleccionar todo'}
@@ -659,6 +668,15 @@ function RelacionesPanel() {
     relSel.size === target.length ? setRelSel(new Set()) : setRelSel(new Set(target.map(r => r.eid)))
   }
 
+  const relSuggestions = useMemo(() =>
+    rels.map(r => {
+      const from = getNodeName(r.from_node)
+      const to = getNodeName(r.to_node)
+      const label = `${from} → ${activeType} → ${to}`
+      return { value: from, label }
+    }),
+  [rels, activeType])
+
   // Filtro client-side: busca en nombre del origen, destino, y propiedades
   const q = search.trim().toLowerCase()
   const visibles = q
@@ -686,12 +704,12 @@ function RelacionesPanel() {
             {q ? `${visibles.length}/${rels.length}` : rels.length} relaciones
           </span>
         )}
-        <input
-          className="trace-input"
-          style={{ flex: 1, minWidth: 200, fontSize: 12 }}
-          placeholder="Buscar por origen, destino o propiedad…"
+        <Combobox
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={setSearch}
+          suggestions={relSuggestions}
+          placeholder="Buscar por origen, destino o propiedad…"
+          className="trace-input"
         />
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={toggleAllRel}>
           {relSel.size === visibles.length && visibles.length > 0 ? 'Deseleccionar' : 'Sel. todo'}

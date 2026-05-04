@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import CafeteriaCard from './CafeteriaCard'
 import CoffeeLoader from './CoffeeLoader'
+import Combobox from './Combobox'
 import type { Cafeteria } from '@/types'
 
 export default function CafeteriasView() {
@@ -42,6 +43,15 @@ export default function CafeteriasView() {
   const ciudades = Array.from(new Set(cafeterias.map((c) => c.ciudad))).sort()
   const tipos = Array.from(new Set(cafeterias.map((c) => c.tipo))).sort()
 
+  const querySuggestions = useMemo(() => {
+    const names = cafeterias.map(c => ({ value: c.nombre, label: c.nombre }))
+    const cities = ciudades.map(c => ({ value: c, label: `Ciudad: ${c}` }))
+    const methods = Array.from(
+      new Set(cafeterias.flatMap(c => Array.isArray(c.metodos_disponibles) ? c.metodos_disponibles : []))
+    ).map(m => ({ value: m as string, label: `Método: ${m}` }))
+    return [...names, ...cities, ...methods]
+  }, [cafeterias, ciudades])
+
   // Filtro client-side por texto: nombre, ciudad, tipo, métodos disponibles, cafeteria_id
   const q = query.trim().toLowerCase()
   const visibles = q
@@ -74,12 +84,11 @@ export default function CafeteriasView() {
     <div className="page fade-in">
       {/* Filtros */}
       <div className="filter-bar">
-        <input
-          className="trace-input"
-          style={{ flex: 1, minWidth: 200 }}
-          placeholder="Buscar por nombre, ciudad, método…"
+        <Combobox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
+          suggestions={querySuggestions}
+          placeholder="Buscar por nombre, ciudad, método…"
         />
         <select
           className="filter-select"
@@ -131,10 +140,11 @@ export default function CafeteriasView() {
             {query ? ` · «${query}»` : ''}
           </div>
           <div className="cafe-grid">
-            {visibles.map((cafe) => (
+            {visibles.map((cafe, i) => (
               <CafeteriaCard
                 key={cafe.cafeteria_id}
                 cafeteria={cafe}
+                staggerIndex={i}
                 onClick={() => router.push(`/trazabilidad?cafeteria=${cafe.cafeteria_id}`)}
               />
             ))}

@@ -1,12 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Leaf } from 'lucide-react'
+import Combobox from './Combobox'
 
 export default function FincaSearch() {
   const [query, setQuery] = useState('')
+  const [fincas, setFincas] = useState<{ finca_id: string; nombre?: string }[]>([])
   const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/admin/nodos?label=Finca')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setFincas(data)
+      })
+      .catch(() => {})
+  }, [])
+
+  const suggestions = useMemo(() =>
+    fincas.map(f => ({
+      value: f.finca_id,
+      label: f.nombre ? `${f.nombre} · ${f.finca_id}` : f.finca_id,
+    })),
+  [fincas])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -14,11 +32,9 @@ export default function FincaSearch() {
     if (id) router.push(`/finca/${encodeURIComponent(id)}`)
   }
 
-  const ejemplos = [
-    { id: 'FINCA-001', nombre: 'El Injerto' },
-    { id: 'FINCA-002', nombre: 'La Esperanza' },
-    { id: 'FINCA-003', nombre: 'Santa Catalina' },
-  ]
+  function handleSelect(val: string) {
+    router.push(`/finca/${encodeURIComponent(val)}`)
+  }
 
   return (
     <div className="page fade-in">
@@ -33,27 +49,15 @@ export default function FincaSearch() {
         </p>
 
         <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <input
-            className="trace-input"
-            placeholder="ID de finca (ej. FINCA-001)"
+          <Combobox
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            onSelect={handleSelect}
+            suggestions={suggestions}
+            placeholder="ID de finca (ej. FINCA-001)"
           />
           <button className="btn btn-fill" type="submit">Buscar</button>
         </form>
-
-        <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 10 }}>Ejemplos:</div>
-        <div className="chips-row" style={{ justifyContent: 'center' }}>
-          {ejemplos.map((f) => (
-            <button
-              key={f.id}
-              className="chip"
-              onClick={() => router.push(`/finca/${f.id}`)}
-            >
-              {f.nombre}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )
