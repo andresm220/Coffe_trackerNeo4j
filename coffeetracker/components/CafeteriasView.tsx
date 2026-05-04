@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { AlertTriangle } from 'lucide-react'
 import CafeteriaCard from './CafeteriaCard'
+import CoffeeLoader from './CoffeeLoader'
 import type { Cafeteria } from '@/types'
 
 export default function CafeteriasView() {
@@ -61,8 +63,8 @@ export default function CafeteriasView() {
   if (error) {
     return (
       <div className="page">
-        <div className="error-state">
-          ⚠️ {error} — Verifica que Neo4j AuraDB esté disponible y las credenciales sean correctas.
+        <div className="error-state" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {error} — Verifica que Neo4j AuraDB esté disponible y las credenciales sean correctas.
         </div>
       </div>
     )
@@ -110,10 +112,11 @@ export default function CafeteriasView() {
       </div>
 
       {loading ? (
-        <div className="loading-state">☕ Cargando cafeterías…</div>
+        <CoffeeLoader text="Cargando cafeterías…" />
       ) : visibles.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon">☕</div>
+          <div className="empty-icon" style={{ display: 'flex', justifyContent: 'center' }}>
+            <CoffeeLoader text="" size={64} /></div>
           <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 500, color: 'var(--text-dark)', marginBottom: 8 }}>
             No hay cafeterías
           </h3>

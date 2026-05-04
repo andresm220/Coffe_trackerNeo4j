@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Coffee } from 'lucide-react'
 
 const navItems = [
   {
@@ -72,7 +73,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-logo">
         <div className="logo-row">
-          <div className="logo-cup">☕</div>
+          <div className="logo-cup"><Coffee size={18} color="#fff" /></div>
           <div>
             <div className="logo-name">CoffeTracker</div>
             <div className="logo-tag">De finca a tu taza</div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, Fragment } from 'react'
+import { AlertTriangle, X, Plus, Check } from 'lucide-react'
 
 const LABELS = ['Cafeteria', 'Finca', 'Lote', 'Productor', 'Tostador', 'Beneficio', 'Transporte', 'Certificacion'] as const
 type Label = typeof LABELS[number]
@@ -357,15 +358,15 @@ function NodosPanel() {
           {selected.size === nodos.length && nodos.length > 0 ? 'Deseleccionar todo' : 'Seleccionar todo'}
         </button>
         <button className="btn btn-fill" style={{ fontSize: 11 }} onClick={() => setShowCreate(v => !v)}>
-          {showCreate ? '✕ Cancelar' : '+ Crear Nodo'}
+          {showCreate ? <><X size={13} /> Cancelar</> : <><Plus size={13} /> Crear Nodo</>}
         </button>
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={load}>↻</button>
       </div>
 
       {error && (
-        <div className="error-state" style={{ marginBottom: 12 }}>
-          ⚠️ {error}
-          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>✕</button>
+        <div className="error-state" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}><X size={14} /></button>
         </div>
       )}
 
@@ -398,7 +399,7 @@ function NodosPanel() {
               })}
             </div>
             {createLabels.size >= 2 && (
-              <div style={{ fontSize: 11, color: 'var(--caramel)' }}>✓ Se creará 1 nodo con los labels: {Array.from(createLabels).join(' + ')}</div>
+              <div style={{ fontSize: 11, color: 'var(--caramel)', display: 'flex', alignItems: 'center', gap: 4 }}><Check size={12} /> Se creará 1 nodo con los labels: {Array.from(createLabels).join(' + ')}</div>
             )}
           </div>
 
@@ -416,7 +417,7 @@ function NodosPanel() {
                   value={p.val}
                   onChange={e => setCreateProps(pr => pr.map((x, j) => j === i ? { ...x, val: e.target.value } : x))} />
                 <button className="btn btn-outline" style={{ fontSize: 11, padding: '4px 8px' }}
-                  onClick={() => setCreateProps(pr => pr.filter((_, j) => j !== i))}>✕</button>
+                  onClick={() => setCreateProps(pr => pr.filter((_, j) => j !== i))}><X size={13} /></button>
               </div>
             ))}
             <button className="btn btn-outline" style={{ fontSize: 11 }}
@@ -696,15 +697,15 @@ function RelacionesPanel() {
           {relSel.size === visibles.length && visibles.length > 0 ? 'Deseleccionar' : 'Sel. todo'}
         </button>
         <button className="btn btn-fill" style={{ fontSize: 11 }} onClick={() => setShowCreate(v => !v)}>
-          {showCreate ? '✕ Cancelar' : '+ Crear Relación'}
+          {showCreate ? <><X size={13} /> Cancelar</> : <><Plus size={13} /> Crear Relación</>}
         </button>
         <button className="btn btn-outline" style={{ fontSize: 11 }} onClick={load}>↻</button>
       </div>
 
       {error && (
-        <div className="error-state" style={{ marginBottom: 12 }}>
-          ⚠️ {error}
-          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>✕</button>
+        <div className="error-state" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}><X size={14} /></button>
         </div>
       )}
 
@@ -748,7 +749,7 @@ function RelacionesPanel() {
                 <input className="trace-input" style={{ flex: 2 }} placeholder="valor" value={p.val}
                   onChange={e => setCProps(pr => pr.map((x, j) => j === i ? { ...x, val: e.target.value } : x))} />
                 <button className="btn btn-outline" style={{ fontSize: 11, padding: '4px 8px' }}
-                  onClick={() => setCProps(pr => pr.filter((_, j) => j !== i))}>✕</button>
+                  onClick={() => setCProps(pr => pr.filter((_, j) => j !== i))}><X size={13} /></button>
               </div>
             ))}
             <button className="btn btn-outline" style={{ fontSize: 11 }}

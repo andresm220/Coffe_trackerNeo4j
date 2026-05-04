@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Leaf } from 'lucide-react'
 
 export default function FincaSearch() {
   const [query, setQuery] = useState('')
@@ -22,7 +23,7 @@ export default function FincaSearch() {
   return (
     <div className="page fade-in">
       <div style={{ maxWidth: 520, margin: '40px auto', textAlign: 'center' }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>🌿</div>
+        <Leaf size={52} color="var(--text-pale)" style={{ marginBottom: 16 }} />
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 500, color: 'var(--text-dark)', marginBottom: 8 }}>
           Vista inversa de finca
         </h2>

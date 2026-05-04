@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { Cafeteria, Finca, Lote } from '@/types'
+import { AlertTriangle, Leaf, Coffee } from 'lucide-react'
+import CoffeeLoader from './CoffeeLoader'
 
 interface FincaRow {
   f: Finca
@@ -35,16 +37,16 @@ export default function FincaDetail({ fincaId }: Props) {
     load()
   }, [fincaId])
 
-  if (loading) return <div className="loading-state">🌿 Cargando finca…</div>
+  if (loading) return <CoffeeLoader text="Cargando finca…" />
   if (error)   return (
     <div className="page">
-      <div className="error-state">⚠️ {error}</div>
+      <div className="error-state" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} />{error}</div>
       <Link href="/finca" className="btn btn-outline" style={{ marginTop: 12, display: 'inline-block' }}>← Volver</Link>
     </div>
   )
   if (rows.length === 0) return (
     <div className="page empty-state">
-      <div className="empty-icon">🌿</div>
+      <div className="empty-icon" style={{ display: 'flex', justifyContent: 'center' }}><Leaf size={48} color="var(--text-pale)" /></div>
       <p>No se encontraron lotes o cafeterías para esta finca.</p>
       <Link href="/finca" className="btn btn-outline" style={{ marginTop: 16, display: 'inline-block' }}>← Volver</Link>
     </div>
@@ -57,7 +59,7 @@ export default function FincaDetail({ fincaId }: Props) {
       {/* Header card */}
       <div className="hero" style={{ marginBottom: 24 }}>
         <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
-          <div className="hero-badge">🌿 Finca</div>
+          <div className="hero-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Leaf size={12} /> Finca</div>
           <div className="hero-title">{finca.nombre}</div>
           <div className="hero-sub">
             {finca.region} · {finca.altitud_msnm} msnm
@@ -97,7 +99,7 @@ export default function FincaDetail({ fincaId }: Props) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {row.cafeterias.map((c) => (
               <div key={c.cafeteria_id} className="metodo-tag" style={{ padding: '5px 12px', fontSize: 12 }}>
-                ☕ {c.nombre} · {c.ciudad}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Coffee size={13} /> {c.nombre} · {c.ciudad}</span>
               </div>
             ))}
           </div>

@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { Coffee, Flame, Truck, Settings2, Leaf, User, AlertTriangle, Check, X } from 'lucide-react'
+import CoffeeLoader from './CoffeeLoader'
 import type { TrazabilidadData } from '@/types'
 
 function getProcesoCls(p: string) {
@@ -42,10 +44,10 @@ export default function TrazabilidadDetail({ loteId }: Props) {
     load()
   }, [loteId])
 
-  if (loading) return <div className="loading-state">☕ Cargando trazabilidad…</div>
+  if (loading) return <CoffeeLoader text="Cargando trazabilidad…" />
   if (error)   return (
     <div className="page">
-      <div className="error-state">⚠️ {error}</div>
+      <div className="error-state" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} />{error}</div>
       <Link href="/trazabilidad" className="btn btn-outline" style={{ marginTop: 12, display: 'inline-block' }}>← Volver a búsqueda</Link>
     </div>
   )
@@ -55,32 +57,32 @@ export default function TrazabilidadDetail({ loteId }: Props) {
 
   const steps = [
     {
-      key: 'cafeteria', icon: '☕', label: 'Tu cafetería', name: cafe.nombre,
+      key: 'cafeteria', icon: <Coffee size={22} color="var(--brown)" />, label: 'Tu cafetería', name: cafe.nombre,
       detail: `${cafe.ciudad} · ${cafe.tipo}`, extra: `Q${cafe.precio_promedio_taza}/taza`,
       data: { 'Cafetería': cafe.nombre, 'Ciudad': cafe.ciudad, 'Tipo': cafe.tipo, 'Métodos': (cafe.metodos_disponibles || []).join(', '), 'Precio taza': `Q${cafe.precio_promedio_taza}` },
     },
     {
-      key: 'tostador', icon: '🔥', label: 'Tostador', name: tostador.nombre,
+      key: 'tostador', icon: <Flame size={22} color="var(--brown)" />, label: 'Tostador', name: tostador.nombre,
       detail: `Perfil ${tostador.perfil_preferido}`, extra: tostador.pais,
       data: { 'Tostador': tostador.nombre, 'País': tostador.pais, 'Perfil': tostador.perfil_preferido },
     },
     ...(transportes.length > 0 ? [{
-      key: 'transporte', icon: '🚚', label: 'Transporte', name: transportes[0].medio,
+      key: 'transporte', icon: <Truck size={22} color="var(--brown)" />, label: 'Transporte', name: transportes[0].medio,
       detail: `${transportes[0].distancia_km} km`, extra: transportes[0].fecha_salida,
       data: { 'Medio': transportes[0].medio, 'Salida': transportes[0].fecha_salida, 'Llegada': transportes[0].fecha_llegada, 'Distancia': `${transportes[0].distancia_km} km` },
     }] : []),
     {
-      key: 'beneficio', icon: '⚙️', label: 'Beneficio', name: beneficio.nombre,
+      key: 'beneficio', icon: <Settings2 size={22} color="var(--brown)" />, label: 'Beneficio', name: beneficio.nombre,
       detail: `${beneficio.tipo} · ${beneficio.municipio}`, extra: beneficio.tipo,
       data: { 'Nombre': beneficio.nombre, 'Tipo': beneficio.tipo, 'Municipio': beneficio.municipio },
     },
     {
-      key: 'finca', icon: '🌿', label: 'Finca', name: finca.nombre,
+      key: 'finca', icon: <Leaf size={22} color="var(--brown)" />, label: 'Finca', name: finca.nombre,
       detail: `${finca.region} · ${finca.altitud_msnm} msnm`, extra: (finca.variedades_cultivadas || []).join(', '),
       data: { 'Finca': finca.nombre, 'Región': finca.region, 'Altitud': `${finca.altitud_msnm} msnm`, 'Orgánica': finca.organica ? 'Sí' : 'No', 'Variedades': (finca.variedades_cultivadas || []).join(', ') },
     },
     {
-      key: 'productor', icon: '👨‍🌾', label: 'Productor', name: productor.nombre,
+      key: 'productor', icon: <User size={22} color="var(--brown)" />, label: 'Productor', name: productor.nombre,
       detail: productor.tipo, extra: productor.activo ? 'Activo' : 'Inactivo',
       data: { 'Productor': productor.nombre, 'Tipo': productor.tipo, 'Estado': productor.activo ? 'Activo' : 'Inactivo' },
     },
@@ -103,7 +105,7 @@ export default function TrazabilidadDetail({ loteId }: Props) {
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {certificaciones.map((c, i) => (
               <span key={i} style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', borderRadius: 20, padding: '3px 10px', fontSize: 11 }}>
-                ✓ {c.nombre}
+                <Check size={11} style={{ flexShrink: 0 }} /> {c.nombre}
               </span>
             ))}
             <span className={`proceso-tag ${getProcesoCls(lote.proceso)}`} style={{ marginLeft: 4 }}>
@@ -161,7 +163,7 @@ export default function TrazabilidadDetail({ loteId }: Props) {
                   <div className="dp-sub">{activeStepData.detail}</div>
                 </div>
                 <button className="btn btn-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '6px 12px' }} onClick={() => setActiveStep(null)}>
-                  Cerrar ✕
+                  Cerrar <X size={12} />
                 </button>
               </div>
               <div className="dp-grid">
@@ -180,7 +182,7 @@ export default function TrazabilidadDetail({ loteId }: Props) {
               <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 6 }}>Certificaciones de la finca:</div>
               <div>
                 {certificaciones.map((c, i) => (
-                  <span key={i} className="cert-badge">✓ {c.nombre}</span>
+                  <span key={i} className="cert-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={11} /> {c.nombre}</span>
                 ))}
               </div>
             </div>
@@ -194,7 +196,7 @@ export default function TrazabilidadDetail({ loteId }: Props) {
   )
 }
 
-function TimelineView({ data, steps }: { data: TrazabilidadData; steps: { key: string; icon: string; label: string; name: string; detail: string; data: Record<string, string | undefined> }[] }) {
+function TimelineView({ data, steps }: { data: TrazabilidadData; steps: { key: string; icon: ReactNode; label: string; name: string; detail: string; data: Record<string, string | undefined> }[] }) {
   const { lote, finca } = data
   const notas = Array.isArray(lote.notas_cata) ? lote.notas_cata : []
 

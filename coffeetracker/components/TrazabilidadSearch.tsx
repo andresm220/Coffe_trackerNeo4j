@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Search, AlertTriangle } from 'lucide-react'
 
 export default function TrazabilidadSearch() {
   const [query, setQuery] = useState('')
@@ -36,7 +37,7 @@ export default function TrazabilidadSearch() {
   return (
     <div className="page fade-in">
       <div style={{ maxWidth: 520, margin: '40px auto', textAlign: 'center' }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>🔍</div>
+        <Search size={52} color="var(--text-pale)" style={{ marginBottom: 16 }} />
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 500, color: 'var(--text-dark)', marginBottom: 8 }}>
           Traza tu café
         </h2>
@@ -59,8 +60,8 @@ export default function TrazabilidadSearch() {
         </form>
 
         {error && (
-          <div className="error-state" style={{ textAlign: 'left', marginBottom: 16 }}>
-            ⚠️ {error}
+          <div className="error-state" style={{ display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left', marginBottom: 16 }}>
+            <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
           </div>
         )}
 

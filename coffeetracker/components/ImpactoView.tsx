@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { ImpactoResult } from '@/types'
+import { AlertTriangle, Leaf, Coffee } from 'lucide-react'
+import LottiePlayer from './LottiePlayer'
 
 export default function ImpactoView() {
   const [fincaId, setFincaId] = useState('')
@@ -35,7 +37,9 @@ export default function ImpactoView() {
       {/* Intro */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          <div style={{ fontSize: 36 }}>⚠️</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 12, background: 'var(--cream-mid)', flexShrink: 0 }}>
+            <AlertTriangle size={28} color="var(--caramel)" />
+          </div>
           <div>
             <div className="section-title" style={{ marginBottom: 4 }}>Análisis de impacto por plaga</div>
             <p style={{ fontSize: 13, color: 'var(--text-mid)', lineHeight: 1.7 }}>
@@ -61,13 +65,15 @@ export default function ImpactoView() {
         </button>
       </form>
 
-      {error && <div className="error-state" style={{ marginBottom: 20 }}>⚠️ {error}</div>}
+      {error && <div className="error-state" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} style={{ flexShrink: 0 }} />{error}</div>}
 
       {/* Resultados */}
       {buscado && !loading && (
         resultados.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">✅</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <LottiePlayer src="https://assets9.lottiefiles.com/packages/lf20_jbrw3hcz.json" size={120} />
+            </div>
             <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: 'var(--text-dark)', marginBottom: 8 }}>
               Sin impacto detectado
             </h3>
@@ -80,14 +86,14 @@ export default function ImpactoView() {
             </div>
             {resultados.map((r, i) => (
               <div key={i} className="impacto-result">
-                <div className="impacto-finca">🌿 {r.finca_vecina}</div>
+                <div className="impacto-finca" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Leaf size={15} color="var(--text-mid)" /> {r.finca_vecina}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-mid)' }}>
                   {r.lotes} {r.lotes === 1 ? 'lote activo' : 'lotes activos'} en cafeterías
                 </div>
                 <div className="impacto-cafes">
                   {r.cafeterias_afectadas.map((c, j) => (
-                    <span key={j} className="metodo-tag" style={{ padding: '4px 12px', fontSize: 11.5 }}>
-                      ☕ {c}
+                    <span key={j} className="metodo-tag" style={{ padding: '4px 12px', fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <Coffee size={12} style={{ flexShrink: 0 }} /> {c}
                     </span>
                   ))}
                 </div>
