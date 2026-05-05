@@ -4,6 +4,10 @@ Aplicación web de trazabilidad de café de especialidad guatemalteco. Recorre e
 
 **Cafetería → Tostador → Transporte → Beneficio → Finca → Productor → Certificaciones**
 
+## Demo
+
+📹 [Proyecto2CoffeeTracker.mp4](./Proyecto2CoffeeTracker.mp4) — video de demostración de la aplicación (≤ 10 min).
+
 ## Stack
 
 | Tecnología | Versión |
