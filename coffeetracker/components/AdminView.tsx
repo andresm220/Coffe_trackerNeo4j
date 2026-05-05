@@ -57,6 +57,30 @@ function getNodeName(node: NodeRecord): string {
   return String(node.nombre ?? node.name ?? Object.values(node)[0] ?? '')
 }
 
+const LABEL_DISPLAY_COLS: Record<string, string[]> = {
+  Cafeteria:    ['cafeteria_id',   'nombre',    'ciudad',        'tipo',           'precio_promedio_taza'],
+  Finca:        ['finca_id',       'nombre',    'region',        'altitud_msnm',   'organica'],
+  Lote:         ['lote_id',        'codigo_lote','proceso',      'puntaje_sca',    'peso_kg'],
+  Productor:    ['productor_id',   'nombre',    'tipo',          'activo',         'num_miembros'],
+  Tostador:     ['tostador_id',    'nombre',    'pais',          'perfil_preferido','capacidad_kg_mes'],
+  Beneficio:    ['beneficio_id',   'nombre',    'tipo',          'municipio',      'capacidad_qq_dia'],
+  Transporte:   ['transporte_id',  'medio',     'fecha_salida',  'fecha_llegada',  'distancia_km'],
+  Certificacion:['cert_id',        'nombre',    'entidad_emisora','año_creacion',  'costo_usd'],
+}
+
+function getDisplayColumns(label: string, nodes: NodeRecord[]): string[] {
+  if (!nodes.length) return []
+  const available = new Set(Object.keys(nodes[0]).filter(k => k !== '_eid'))
+  const priority = LABEL_DISPLAY_COLS[label] ?? []
+  const cols = priority.filter(c => available.has(c))
+  // fill remaining slots with any leftover keys not already included
+  for (const k of available) {
+    if (cols.length >= 5) break
+    if (!cols.includes(k)) cols.push(k)
+  }
+  return cols.slice(0, 5)
+}
+
 function emptyKV(n = 5): KVPair[] {
   return Array(n).fill(null).map(() => ({ key: '', val: '' }))
 }
@@ -339,7 +363,7 @@ function NodosPanel() {
     selected.size === target.length ? setSelected(new Set()) : setSelected(new Set(target.map(n => getSelectKey(n, activeLabel))))
   }
 
-  const columns = nodos.length > 0 ? Object.keys(nodos[0]).filter(k => k !== '_eid').slice(0, 5) : []
+  const columns = getDisplayColumns(activeLabel, nodos)
 
   const searchSuggestions = useMemo(() =>
     nodos.map(n => {
