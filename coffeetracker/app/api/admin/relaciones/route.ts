@@ -13,6 +13,10 @@ function getIdField(label: string): string {
   return map[label] || 'id'
 }
 
+// Campos escalares de nombre/id comunes a todos los labels (sin arrays)
+const SEARCH_FIELDS = ['nombre', 'cafeteria_id', 'finca_id', 'lote_id', 'codigo_lote',
+  'productor_id', 'tostador_id', 'beneficio_id', 'transporte_id', 'cert_id', 'medio']
+
 // LIST — relaciones de un tipo
 export async function GET(request: Request) {
   try {
@@ -20,14 +24,24 @@ export async function GET(request: Request) {
     const type = searchParams.get('type') || 'SIRVE'
     if (!REL_TYPES.includes(type)) return NextResponse.json({ error: 'Tipo no válido' }, { status: 400 })
 
+    const search = searchParams.get('search') || null
+    const fieldList = SEARCH_FIELDS.map(f => `'${f}'`).join(', ')
+    const whereClause = search
+      ? `WHERE any(k IN [${fieldList}] WHERE a[k] IS NOT NULL AND toLower(toString(a[k])) CONTAINS toLower($search))
+            OR any(k IN [${fieldList}] WHERE b[k] IS NOT NULL AND toLower(toString(b[k])) CONTAINS toLower($search))`
+      : ''
+    const limit = search ? 500 : 200
+
     const records = await runQuery(
       `MATCH (a)-[r:${type}]->(b)
+       ${whereClause}
        RETURN elementId(r)  AS eid,
               properties(r) AS props,
               labels(a)[0]  AS from_label, properties(a) AS from_node,
               labels(b)[0]  AS to_label,   properties(b) AS to_node
        ORDER BY eid DESC
-       LIMIT 200`
+       LIMIT ${limit}`,
+      search ? { search } : {}
     )
     return NextResponse.json(records)
   } catch (error) {

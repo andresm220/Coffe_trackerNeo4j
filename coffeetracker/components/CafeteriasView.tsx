@@ -1,16 +1,16 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import CafeteriaCard from './CafeteriaCard'
+import CafeteriaModal, { type LoteConFinca } from './CafeteriaModal'
 import CoffeeLoader from './CoffeeLoader'
 import Combobox from './Combobox'
 import type { Cafeteria } from '@/types'
 
 export default function CafeteriasView() {
   const searchParams = useSearchParams()
-  const router = useRouter()
 
   const [cafeterias, setCafeterias] = useState<Cafeteria[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,6 +18,10 @@ export default function CafeteriasView() {
   const [ciudad, setCiudad] = useState(searchParams.get('ciudad') || '')
   const [tipo, setTipo] = useState(searchParams.get('tipo') || '')
   const [query, setQuery] = useState('')
+
+  const [selectedCafe, setSelectedCafe] = useState<Cafeteria | null>(null)
+  const [modalLotes, setModalLotes] = useState<LoteConFinca[]>([])
+  const [loadingModal, setLoadingModal] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -29,8 +33,7 @@ export default function CafeteriasView() {
         if (tipo) params.set('tipo', tipo)
         const res = await fetch(`/api/cafeterias?${params}`)
         if (!res.ok) throw new Error('Error al cargar cafeterías')
-        const data = await res.json()
-        setCafeterias(data)
+        setCafeterias(await res.json())
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error desconocido')
       } finally {
@@ -52,23 +55,27 @@ export default function CafeteriasView() {
     return [...names, ...cities, ...methods]
   }, [cafeterias, ciudades])
 
-  // Filtro client-side por texto: nombre, ciudad, tipo, métodos disponibles, cafeteria_id
   const q = query.trim().toLowerCase()
   const visibles = q
     ? cafeterias.filter((c) => {
-        const haystack = [
-          c.nombre,
-          c.ciudad,
-          c.tipo,
-          c.cafeteria_id,
-          ...(Array.isArray(c.metodos_disponibles) ? c.metodos_disponibles : []),
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
+        const haystack = [c.nombre, c.ciudad, c.tipo, c.cafeteria_id,
+          ...(Array.isArray(c.metodos_disponibles) ? c.metodos_disponibles : [])]
+          .filter(Boolean).join(' ').toLowerCase()
         return haystack.includes(q)
       })
     : cafeterias
+
+  async function openCafeteria(cafe: Cafeteria) {
+    setSelectedCafe(cafe)
+    setModalLotes([])
+    setLoadingModal(true)
+    try {
+      const res = await fetch(`/api/cafeterias/${encodeURIComponent(cafe.cafeteria_id)}/lotes`)
+      if (res.ok) setModalLotes(await res.json())
+    } finally {
+      setLoadingModal(false)
+    }
+  }
 
   if (error) {
     return (
@@ -90,31 +97,16 @@ export default function CafeteriasView() {
           suggestions={querySuggestions}
           placeholder="Buscar por nombre, ciudad, método…"
         />
-        <select
-          className="filter-select"
-          value={ciudad}
-          onChange={(e) => setCiudad(e.target.value)}
-        >
+        <select className="filter-select" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
           <option key="__all" value="">Todas las ciudades</option>
-          {ciudades.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
+          {ciudades.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select
-          className="filter-select"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-        >
+        <select className="filter-select" value={tipo} onChange={(e) => setTipo(e.target.value)}>
           <option key="__all" value="">Todos los tipos</option>
-          {tipos.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
+          {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         {(ciudad || tipo || query) && (
-          <button
-            className="btn btn-outline"
-            onClick={() => { setCiudad(''); setTipo(''); setQuery('') }}
-          >
+          <button className="btn btn-outline" onClick={() => { setCiudad(''); setTipo(''); setQuery('') }}>
             Limpiar filtros
           </button>
         )}
@@ -125,7 +117,8 @@ export default function CafeteriasView() {
       ) : visibles.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon" style={{ display: 'flex', justifyContent: 'center' }}>
-            <CoffeeLoader text="" size={64} /></div>
+            <CoffeeLoader text="" size={64} />
+          </div>
           <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 500, color: 'var(--text-dark)', marginBottom: 8 }}>
             No hay cafeterías
           </h3>
@@ -145,11 +138,20 @@ export default function CafeteriasView() {
                 key={cafe.cafeteria_id}
                 cafeteria={cafe}
                 staggerIndex={i}
-                onClick={() => router.push(`/trazabilidad?cafeteria=${cafe.cafeteria_id}`)}
+                onClick={() => openCafeteria(cafe)}
               />
             ))}
           </div>
         </>
+      )}
+
+      {selectedCafe && (
+        <CafeteriaModal
+          cafeteria={selectedCafe}
+          lotes={modalLotes}
+          loading={loadingModal}
+          onClose={() => { setSelectedCafe(null); setModalLotes([]) }}
+        />
       )}
     </div>
   )

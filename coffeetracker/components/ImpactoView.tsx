@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { ImpactoResult } from '@/types'
 import { AlertTriangle, Leaf, Coffee } from 'lucide-react'
 import LottiePlayer from './LottiePlayer'
+import Combobox from './Combobox'
 
 export default function ImpactoView() {
   const [fincaId, setFincaId] = useState('')
@@ -11,16 +12,32 @@ export default function ImpactoView() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buscado, setBuscado] = useState(false)
+  const [fincas, setFincas] = useState<{ finca_id?: string; nombre?: string; region?: string }[]>([])
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    const id = fincaId.trim()
-    if (!id) return
+  useEffect(() => {
+    fetch('/api/admin/nodos?label=Finca')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setFincas(data) })
+      .catch(() => {})
+  }, [])
+
+  const suggestions = useMemo(() =>
+    fincas
+      .filter(f => f.finca_id)
+      .map(f => ({
+        value: f.finca_id!,
+        label: f.nombre ? `${f.nombre} · ${f.region ?? f.finca_id}` : f.finca_id!,
+      })),
+  [fincas])
+
+  async function runSearch(id: string) {
+    const trimmed = id.trim()
+    if (!trimmed) return
     setLoading(true)
     setError(null)
     setBuscado(false)
     try {
-      const res = await fetch(`/api/impacto?finca_id=${encodeURIComponent(id)}`)
+      const res = await fetch(`/api/impacto?finca_id=${encodeURIComponent(trimmed)}`)
       if (!res.ok) throw new Error('Error al consultar impacto')
       const data = await res.json()
       setResultados(data)
@@ -30,6 +47,11 @@ export default function ImpactoView() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    runSearch(fincaId)
   }
 
   return (
@@ -53,11 +75,12 @@ export default function ImpactoView() {
 
       {/* Búsqueda */}
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, marginBottom: 24, maxWidth: 520 }}>
-        <input
-          className="trace-input"
-          placeholder="ID de la finca afectada (ej. FINCA-001)"
+        <Combobox
           value={fincaId}
-          onChange={(e) => setFincaId(e.target.value)}
+          onChange={setFincaId}
+          onSelect={runSearch}
+          suggestions={suggestions}
+          placeholder="Buscar finca (nombre o ID)"
           disabled={loading}
         />
         <button className="btn btn-fill" type="submit" disabled={loading}>

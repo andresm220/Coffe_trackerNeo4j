@@ -12,12 +12,36 @@ function getIdField(label: string): string {
   return map[label] || 'id'
 }
 
+// Solo campos escalares (sin arrays) para búsqueda segura en Cypher
+function getSearchFields(label: string): string[] {
+  const map: Record<string, string[]> = {
+    Cafeteria:    ['cafeteria_id', 'nombre', 'ciudad', 'tipo'],
+    Finca:        ['finca_id', 'nombre', 'region'],
+    Lote:         ['lote_id', 'codigo_lote', 'proceso'],
+    Productor:    ['productor_id', 'nombre', 'tipo'],
+    Tostador:     ['tostador_id', 'nombre', 'pais', 'perfil_preferido'],
+    Beneficio:    ['beneficio_id', 'nombre', 'municipio', 'tipo'],
+    Transporte:   ['transporte_id', 'medio'],
+    Certificacion:['cert_id', 'nombre', 'entidad_emisora'],
+  }
+  return map[label] || [getIdField(label)]
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const label = searchParams.get('label') || 'Cafeteria'
     if (!LABELS.includes(label)) return NextResponse.json({ error: 'Label no válido' }, { status: 400 })
-    const records = await runQuery(`MATCH (n:${label}) RETURN properties(n) AS n, elementId(n) AS eid ORDER BY eid DESC LIMIT 200`)
+    const search = searchParams.get('search') || null
+    let cypher: string
+    if (search) {
+      const fields = getSearchFields(label)
+      const conditions = fields.map(f => `toLower(toString(n.${f})) CONTAINS toLower($search)`).join(' OR ')
+      cypher = `MATCH (n:${label}) WHERE ${conditions} RETURN properties(n) AS n, elementId(n) AS eid ORDER BY eid DESC LIMIT 500`
+    } else {
+      cypher = `MATCH (n:${label}) RETURN properties(n) AS n, elementId(n) AS eid ORDER BY eid DESC LIMIT 200`
+    }
+    const records = await runQuery(cypher, search ? { search } : {})
     return NextResponse.json(records.map((r) => {
       const row = r as Record<string, unknown>
       return { ...(row.n as Record<string, unknown>), _eid: row.eid }

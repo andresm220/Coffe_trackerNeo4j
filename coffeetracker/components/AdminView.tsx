@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from 'react'
 import Combobox from './Combobox'
 import { AlertTriangle, X, Plus, Check } from 'lucide-react'
 
@@ -145,15 +145,16 @@ function getSchemaPlaceholder(labels: Set<Label>, key: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminView() {
-  const [mainTab, setMainTab] = useState<'nodos' | 'relaciones'>('nodos')
+  const [mainTab, setMainTab] = useState<'nodos' | 'relaciones' | 'csv'>('nodos')
 
   return (
     <div className="page fade-in">
       <div className="tabs" style={{ marginBottom: 20 }}>
         <button className={`tab${mainTab === 'nodos' ? ' active' : ''}`} onClick={() => setMainTab('nodos')}>Nodos</button>
         <button className={`tab${mainTab === 'relaciones' ? ' active' : ''}`} onClick={() => setMainTab('relaciones')}>Relaciones</button>
+        <button className={`tab${mainTab === 'csv' ? ' active' : ''}`} onClick={() => setMainTab('csv')}>Importar CSV</button>
       </div>
-      {mainTab === 'nodos' ? <NodosPanel /> : <RelacionesPanel />}
+      {mainTab === 'nodos' ? <NodosPanel /> : mainTab === 'relaciones' ? <RelacionesPanel /> : <CsvPanel />}
     </div>
   )
 }
@@ -187,20 +188,38 @@ function NodosPanel() {
 
   // Búsqueda libre por cualquier campo
   const [search, setSearch] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const idf = getIdField(activeLabel)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (searchTerm?: string) => {
     setLoading(true); setError(null); setSelected(new Set()); setEditingId(null)
     try {
-      const res = await fetch(`/api/admin/nodos?label=${activeLabel}`)
+      const params = new URLSearchParams({ label: activeLabel })
+      if (searchTerm) params.set('search', searchTerm)
+      const res = await fetch(`/api/admin/nodos?${params}`)
       if (!res.ok) throw new Error('Error al cargar')
       setNodos(await res.json())
     } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
     finally { setLoading(false) }
   }, [activeLabel])
 
-  useEffect(() => { load() }, [load])
+  // Reload cuando cambia el label (cancela debounce pendiente y limpia búsqueda)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setSearch('')
+    load()
+  }, [load])
+
+  // Re-fetch en el servidor cuando el usuario escribe (debounce 400ms)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      load(search.trim() || undefined)
+    }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
   useEffect(() => {
     const labels = new Set([activeLabel]) as Set<Label>
     setCreateLabels(labels)
@@ -572,18 +591,36 @@ function RelacionesPanel() {
 
   // Búsqueda libre por nombre de origen/destino o propiedad
   const [search, setSearch] = useState('')
+  const relDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (searchTerm?: string) => {
     setLoading(true); setError(null); setRelSel(new Set()); setEditingEid(null)
     try {
-      const res = await fetch(`/api/admin/relaciones?type=${activeType}`)
+      const params = new URLSearchParams({ type: activeType })
+      if (searchTerm) params.set('search', searchTerm)
+      const res = await fetch(`/api/admin/relaciones?${params}`)
       if (!res.ok) throw new Error('Error al cargar')
       setRels(await res.json())
     } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
     finally { setLoading(false) }
   }, [activeType])
 
-  useEffect(() => { load() }, [load])
+  // Reload cuando cambia el tipo (cancela debounce pendiente y limpia búsqueda)
+  useEffect(() => {
+    if (relDebounceRef.current) clearTimeout(relDebounceRef.current)
+    setSearch('')
+    load()
+  }, [load])
+
+  // Re-fetch server-side al escribir (debounce 400ms)
+  useEffect(() => {
+    if (relDebounceRef.current) clearTimeout(relDebounceRef.current)
+    relDebounceRef.current = setTimeout(() => {
+      load(search.trim() || undefined)
+    }, 400)
+    return () => { if (relDebounceRef.current) clearTimeout(relDebounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   async function handleCreate() {
     if (!fromVal.trim() || !toVal.trim()) { setError('Completa los IDs de ambos nodos'); return }
@@ -880,6 +917,229 @@ function RelacionesPanel() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CSV IMPORT
+// ─────────────────────────────────────────────────────────────────────────────
+
+type CsvRow = { type: string; label: string; rel_type: string; from_label: string; from_id: string; to_label: string; to_id: string; extra_props: string }
+type ImportResult = { nodes_created: number; rels_created: number; errors: string[] }
+
+function parseCSVPreview(text: string): CsvRow[] {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  if (lines.length < 2) return []
+  return lines.slice(1).map(line => {
+    const cols = line.split(',')
+    const [type = '', label = '', rel_type = '', from_label = '', from_id = '', to_label = '', to_id = '', extra_props = ''] = cols
+    return { type, label, rel_type, from_label, from_id, to_label, to_id, extra_props }
+  })
+}
+
+function CsvPanel() {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<CsvRow[]>([])
+  const [importing, setImporting] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // LOAD CSV via URL
+  const [csvUrl, setCsvUrl] = useState('')
+  const [loadingUrl, setLoadingUrl] = useState(false)
+  const [urlResult, setUrlResult] = useState<{ lotes_importados?: number; message?: string; error?: string } | null>(null)
+
+  function handleFile(f: File | null) {
+    if (!f) return
+    setFile(f); setResult(null); setError(null)
+    const reader = new FileReader()
+    reader.onload = e => setPreview(parseCSVPreview(e.target?.result as string))
+    reader.readAsText(f)
+  }
+
+  async function handleImport() {
+    if (!file) return
+    setImporting(true); setError(null); setResult(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/admin/csv', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al importar')
+      setResult(data as ImportResult)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error desconocido')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function reset() {
+    setFile(null); setPreview([]); setResult(null)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  async function handleLoadCsvUrl() {
+    if (!csvUrl.trim()) return
+    setLoadingUrl(true); setUrlResult(null)
+    try {
+      const res = await fetch('/api/admin/csv', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: csvUrl.trim() }),
+      })
+      setUrlResult(await res.json())
+    } catch (e) {
+      setUrlResult({ error: e instanceof Error ? e.message : 'Error desconocido' })
+    } finally {
+      setLoadingUrl(false)
+    }
+  }
+
+  const nodeRows = preview.filter(r => r.type === 'node')
+  const relRows  = preview.filter(r => r.type === 'rel')
+
+  return (
+    <div>
+      {/* Formato */}
+      <div className="card" style={{ marginBottom: 20, padding: 20 }}>
+        <div className="section-title" style={{ marginBottom: 10 }}>Formato del CSV</div>
+        <p style={{ fontSize: 12.5, color: 'var(--text-mid)', lineHeight: 1.8, marginBottom: 12 }}>
+          8 columnas fijas. Filas <code style={{ background: 'var(--cream-mid)', padding: '1px 5px', borderRadius: 4 }}>node</code> crean nodos,
+          filas <code style={{ background: 'var(--cream-mid)', padding: '1px 5px', borderRadius: 4 }}>rel</code> crean relaciones —
+          pueden conectar nodos del mismo CSV o nodos ya existentes en la DB.
+          En <strong>extra_props</strong>: <code>clave=valor</code> separado por <code>|</code>. Arrays: usá <code>;</code> entre valores.
+        </p>
+        <div style={{ background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontFamily: 'monospace', fontSize: 11.5, color: 'var(--text-body)', overflowX: 'auto', whiteSpace: 'pre', lineHeight: 1.7 }}>
+{`type,label,rel_type,from_label,from_id,to_label,to_id,extra_props
+node,Lote,,,,,,lote_id=L99901|codigo_lote=CSV-HUE-0001|proceso=Honey|puntaje_sca=88
+node,Transporte,,,,,,transporte_id=TR99901|medio=Camion|distancia_km=280
+rel,,SIRVE,Cafeteria,C001,Lote,L99901,,
+rel,,PRODUJO,Finca,F0001,Lote,L99901,,`}
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <a href="/sample-import.csv" download="sample-import.csv"
+            style={{ fontSize: 12.5, color: 'var(--caramel)', fontWeight: 500, textDecoration: 'none' }}>
+            ↓ CSV multiuso (upload directo)
+          </a>
+          <a href="/github-import.csv" download="github-import.csv"
+            style={{ fontSize: 12.5, color: 'var(--caramel)', fontWeight: 500, textDecoration: 'none' }}>
+            ↓ CSV para LOAD CSV (subir a GitHub)
+          </a>
+        </div>
+      </div>
+
+      {/* LOAD CSV desde URL — método nativo Neo4j */}
+      <div className="card" style={{ marginBottom: 20, padding: 20, borderLeft: '3px solid var(--caramel)' }}>
+        <div className="section-title" style={{ marginBottom: 6 }}>LOAD CSV desde URL <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-light)', marginLeft: 6 }}>método nativo Neo4j</span></div>
+        <p style={{ fontSize: 12, color: 'var(--text-mid)', marginBottom: 12, lineHeight: 1.7 }}>
+          Pegá la URL raw de GitHub (u otro host público). Neo4j AuraDB descarga y procesa el CSV directamente con <code style={{ background: 'var(--cream-mid)', padding: '1px 5px', borderRadius: 4 }}>LOAD CSV</code>.
+          Usá el archivo <strong>github-import.csv</strong> — tiene columnas estándar para Lotes + relaciones automáticas.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            className="trace-input"
+            style={{ flex: 1, minWidth: 260 }}
+            placeholder="https://raw.githubusercontent.com/usuario/repo/main/github-import.csv"
+            value={csvUrl}
+            onChange={e => { setCsvUrl(e.target.value); setUrlResult(null) }}
+            disabled={loadingUrl}
+          />
+          <button className="btn btn-fill" onClick={handleLoadCsvUrl} disabled={loadingUrl || !csvUrl.trim()}>
+            {loadingUrl ? 'Cargando…' : 'Ejecutar LOAD CSV'}
+          </button>
+        </div>
+        {urlResult && (
+          <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: urlResult.error ? '#fff0f0' : '#f0faf4', border: `1px solid ${urlResult.error ? '#ffcccc' : '#8ec9a4'}`, fontSize: 13 }}>
+            {urlResult.error
+              ? <span style={{ color: '#c00' }}>❌ {urlResult.error}</span>
+              : <span>✅ {urlResult.message}</span>
+            }
+          </div>
+        )}
+      </div>
+
+      {/* Upload */}
+      <div className="card" style={{ marginBottom: 20, padding: 20 }}>
+        <div className="section-title" style={{ marginBottom: 12 }}>Seleccionar archivo</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input ref={inputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }}
+            onChange={e => handleFile(e.target.files?.[0] ?? null)} />
+          <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>
+            {file ? `📄 ${file.name}` : 'Elegir archivo CSV'}
+          </button>
+          {file && (
+            <button className="btn btn-fill" onClick={handleImport} disabled={importing}>
+              {importing ? 'Importando…' : `Importar (${preview.length} filas)`}
+            </button>
+          )}
+          {file && (
+            <button className="btn btn-outline" onClick={reset}><X size={13} /> Limpiar</button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-state" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} /> {error}
+        </div>
+      )}
+
+      {/* Resultado */}
+      {result && (
+        <div className="card" style={{ marginBottom: 20, padding: 20, background: result.errors.length === 0 ? '#f0faf4' : '#fffbf0', border: `1px solid ${result.errors.length === 0 ? '#8ec9a4' : 'var(--caramel)'}` }}>
+          <div className="section-title" style={{ marginBottom: 10 }}>Resultado</div>
+          <div style={{ display: 'flex', gap: 24, marginBottom: result.errors.length > 0 ? 12 : 0, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13 }}>✅ <strong>{result.nodes_created}</strong> nodo{result.nodes_created !== 1 ? 's' : ''} creado{result.nodes_created !== 1 ? 's' : ''}</div>
+            <div style={{ fontSize: 13 }}>🔗 <strong>{result.rels_created}</strong> relación{result.rels_created !== 1 ? 'es' : ''} creada{result.rels_created !== 1 ? 's' : ''}</div>
+          </div>
+          {result.errors.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--caramel)', marginBottom: 6 }}>{result.errors.length} error(es):</div>
+              <ul style={{ fontSize: 12, color: 'var(--text-body)', lineHeight: 1.8, paddingLeft: 18 }}>
+                {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Preview tabla */}
+      {preview.length > 0 && !result && (
+        <div>
+          <div className="section-title" style={{ marginBottom: 10 }}>
+            Vista previa — {nodeRows.length} nodo{nodeRows.length !== 1 ? 's' : ''} · {relRows.length} relación{relRows.length !== 1 ? 'es' : ''}
+          </div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th><th>Label / Rel</th><th>Origen</th><th>Destino</th><th>Propiedades</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i} style={{ background: row.type === 'rel' ? 'var(--cream)' : undefined }}>
+                      <td>
+                        <span className="metodo-tag" style={{ fontSize: 10.5, padding: '2px 8px', background: row.type === 'node' ? 'var(--caramel)' : 'var(--brown-mid)', color: '#fff' }}>
+                          {row.type}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 500, fontSize: 12 }}>{row.type === 'node' ? row.label : row.rel_type}</td>
+                      <td style={{ fontSize: 12, color: 'var(--text-mid)' }}>{row.type === 'rel' ? `${row.from_label} · ${row.from_id}` : '—'}</td>
+                      <td style={{ fontSize: 12, color: 'var(--text-mid)' }}>{row.type === 'rel' ? `${row.to_label} · ${row.to_id}` : '—'}</td>
+                      <td style={{ fontSize: 11, color: 'var(--text-mid)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.extra_props || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
